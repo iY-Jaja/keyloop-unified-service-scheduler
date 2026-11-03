@@ -234,10 +234,9 @@ I treated AI suggestions as proposals and checked the implementation against the
 2. **Architecture (90 sec):** Walk through the diagram in `SYSTEM_DESIGN.md`, emphasizing the controller-service-repository-entity layers, the AOP metrics aspect, transaction/dealership and vehicle locks, database, and why availability is not cached.
 3. **Live demo (2 min):** Start with `docker compose up --build` to run the application against PostgreSQL, show the service catalog, create a booking with the cURL command above, repeat it with the same idempotency key, then try another key in the overlapping time slot to show the conflict response.
 4. **Verification (60 sec):** Run `mvn -Dapi.version=1.40 test` with Docker available and point out the PostgreSQL overlap, retry, and simultaneous-booking integration tests.
-5. **AI collaboration and ownership (60 sec):** Explain how Perplexity, Claude, and GitHub Copilot helped you analyze and evaluate your thinking; identify your own design decisions (especially MVC layers, locking, idempotency, and cache policy), how you verified the implementation, and any PostgreSQL test skip that remains unresolved.
+5. **AI collaboration and ownership (60 sec):** Explain how Perplexity, Claude, and GitHub Copilot helped you analyze and evaluate your thinking; identify your own design decisions (especially MVC layers, locking, idempotency, and cache policy), how you verified the implementation, and why Docker Engine 29 requires the documented Testcontainers API-version override.
 6. **Learning and next steps (30 sec):** Mention PostgreSQL validation, authentication, and cancellation/rescheduling as production follow-ups.
 
 ## Scope and production considerations
 
 This assessment implementation covers the backend service layer. It intentionally does not implement a UI, authentication/authorization, or external master-data integrations. Before production, add authenticated dealership-level access control, secrets management, database backup/recovery, migration/release controls, and a distributed cache or explicit invalidation if reference data changes frequently. See the system design document for concurrency and scaling trade-offs.
-# keyloop-unified-service-scheduler
