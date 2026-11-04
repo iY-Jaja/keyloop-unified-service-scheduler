@@ -17,7 +17,7 @@ Backend implementation of the Keyloop Technical Assessment's **Resource Constrai
 
 ## Assessment implementation scope
 
-I chose the **backend service layer**. The browser/client is represented by documented REST endpoints and cURL examples, while the tests exercise the API through MockMvc and real HTTP requests.
+I chose the **backend service layer**. A customer-facing browser client is out of scope; clients are represented by documented REST endpoints and cURL examples. Swagger UI is included as developer documentation for browsing and trying the API, while tests exercise API behavior through MockMvc and real HTTP requests.
 
 | Part 2 requirement | Implementation |
 |---|---|
@@ -77,7 +77,7 @@ The `prod` profile uses the PostgreSQL datasource and schema-only Flyway migrati
 
 ## Testing strategy
 
-The service is a REST API with no browser UI, so end-to-end coverage exercises real HTTP requests rather than Playwright. The test suite is split by boundary:
+The service has no customer-facing browser application; Swagger UI is only for developer API documentation. End-to-end coverage therefore exercises the API over HTTP rather than customer workflows in Playwright. The test suite is split by boundary:
 
 | Test level | Test class | Scope |
 |---|---|---|
@@ -122,7 +122,7 @@ The Docker image build is not a substitute for this host-side test run: containe
 
 Import [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json) into Postman. Start the Compose stack, then run the collection's requests in order. It reads service types and dealership resources, creates a booking at a generated future time, retries it with the same idempotency key, verifies an overlapping booking is rejected, and reads the created appointment. Set the collection variable `baseUrl` if the API is not at `http://localhost:8080`.
 
-The API contract is also documented in [openapi.yaml](./openapi.yaml), which can be viewed in an OpenAPI editor or imported into compatible API tools.
+The API contract is documented in [openapi.yaml](./openapi.yaml) using OpenAPI 2.0 (Swagger 2.0). With the application running, open `http://localhost:8080/swagger-ui/index.html` to browse the endpoints and try requests. Swagger UI loads this same contract from `/openapi.yaml`; the contract is maintained as a static file rather than generated from controller code. “Try it out” sends requests to the local API, so use a local/demo database—booking requests create persistent appointments. You can also import the file into Postman or another Swagger 2-compatible API tool.
 
 The collection is a manual API smoke-test/demo, not a replacement for the automated Maven unit, component, integration, and API E2E suites. It creates a real appointment in the database; use it only with a local/demo database, not production.
 

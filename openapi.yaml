@@ -1,13 +1,18 @@
-openapi: 3.0.3
+swagger: '2.0'
 info:
   title: Unified Service Scheduler API
   version: 1.0.0
   description: >
     REST API for querying service catalog and dealership resources,
     booking vehicle service appointments, and retrieving appointments.
-servers:
-  - url: http://localhost:8080
-    description: Local development
+host: localhost:8080
+basePath: /
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
 tags:
   - name: Appointments
     description: Book and query service appointments
@@ -31,61 +36,36 @@ paths:
           in: header
           required: true
           description: Key used to safely retry the same booking request.
+          type: string
+          minLength: 1
+          maxLength: 128
+        - name: booking
+          in: body
+          required: true
+          description: Appointment details to book.
           schema:
-            type: string
-            minLength: 1
-            maxLength: 128
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BookingRequest'
-            example:
-              dealershipId: dealer-1
-              customerId: customer-1
-              vehicleId: vehicle-1
-              serviceTypeId: oil-change
-              startAt: '2027-01-16T10:00:00+07:00'
+            $ref: '#/definitions/BookingRequest'
       responses:
         '201':
           description: Appointment created or original appointment replayed.
           headers:
             Location:
-              description: URI of the created or replayed appointment.
-              schema:
-                type: string
-                format: uri-reference
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+              description: URI reference of the created or replayed appointment.
+              type: string
+          schema:
+            $ref: '#/definitions/AppointmentResponse'
         '400':
-          $ref: '#/components/responses/InvalidRequest'
+          $ref: '#/responses/InvalidRequest'
         '404':
-          $ref: '#/components/responses/NotFound'
+          $ref: '#/responses/NotFound'
         '409':
           description: Vehicle, service bay, technician, or idempotency conflict.
-          content:
+          schema:
+            $ref: '#/definitions/ApiError'
+          examples:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                vehicleAlreadyBooked:
-                  summary: Vehicle has an overlapping confirmed appointment.
-                  value:
-                    code: VEHICLE_ALREADY_BOOKED
-                    message: The vehicle already has an appointment for this time.
-                slotUnavailable:
-                  summary: No bay or qualified technician is available.
-                  value:
-                    code: SLOT_UNAVAILABLE
-                    message: No suitable service resources are available for this time.
-                idempotencyKeyReused:
-                  summary: Key was previously used with a different request.
-                  value:
-                    code: IDEMPOTENCY_KEY_REUSED
-                    message: The idempotency key was already used for a different request.
+              code: SLOT_UNAVAILABLE
+              message: No suitable service resources are available for this time.
     get:
       tags:
         - Appointments
@@ -96,28 +76,24 @@ paths:
           in: query
           required: false
           description: Zero-based page number.
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
+          type: integer
+          minimum: 0
+          default: 0
         - name: size
           in: query
           required: false
           description: Number of results per page.
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
       responses:
         '200':
           description: Page of appointments sorted by start time and ID.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentPage'
+          schema:
+            $ref: '#/definitions/AppointmentPage'
         '400':
-          $ref: '#/components/responses/InvalidRequest'
+          $ref: '#/responses/InvalidRequest'
   /api/v1/appointments/{appointmentId}:
     get:
       tags:
@@ -129,17 +105,14 @@ paths:
           in: path
           required: true
           description: Identifier of the appointment.
-          schema:
-            type: string
+          type: string
       responses:
         '200':
           description: Appointment details.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          schema:
+            $ref: '#/definitions/AppointmentResponse'
         '404':
-          $ref: '#/components/responses/NotFound'
+          $ref: '#/responses/NotFound'
   /api/v1/service-types:
     get:
       tags:
@@ -149,12 +122,10 @@ paths:
       responses:
         '200':
           description: Available service types and their durations.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceTypeResponse'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ServiceTypeResponse'
   /api/v1/dealerships/{dealershipId}/resources:
     get:
       tags:
@@ -166,190 +137,190 @@ paths:
           in: path
           required: true
           description: Identifier of the dealership.
-          schema:
-            type: string
+          type: string
       responses:
         '200':
           description: Service bays and technicians at the dealership.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ResourceSummary'
+          schema:
+            $ref: '#/definitions/ResourceSummary'
         '404':
-          $ref: '#/components/responses/NotFound'
-components:
-  responses:
-    InvalidRequest:
-      description: Request body, header, or query parameter is invalid.
+          $ref: '#/responses/NotFound'
+responses:
+  InvalidRequest:
+    description: Request body, header, or query parameter is invalid.
+    schema:
+      $ref: '#/definitions/ApiError'
+    examples:
+      application/json:
+        code: INVALID_REQUEST
+        message: Request validation failed.
+  NotFound:
+    description: A referenced dealership, customer, vehicle, service type, or appointment was not found.
+    schema:
+      $ref: '#/definitions/ApiError'
+    examples:
+      application/json:
+        code: NOT_FOUND
+        message: Appointment not found.
+definitions:
+  BookingRequest:
+    type: object
+    example:
+      dealershipId: dealer-1
+      customerId: customer-1
+      vehicleId: vehicle-1
+      serviceTypeId: oil-change
+      startAt: '2027-01-16T10:00:00+07:00'
+    required:
+      - dealershipId
+      - customerId
+      - vehicleId
+      - serviceTypeId
+      - startAt
+    properties:
+      dealershipId:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: Must not be blank.
+      customerId:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: Must not be blank.
+      vehicleId:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: Must not be blank.
+      serviceTypeId:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: Must not be blank.
+      startAt:
+        type: string
+        format: date-time
+        description: ISO-8601 timestamp with an offset; normalized to UTC.
+  AppointmentResponse:
+    type: object
+    required:
+      - id
+      - dealershipId
+      - customerId
+      - vehicleId
+      - serviceTypeId
+      - serviceBayId
+      - technicianId
+      - startAt
+      - endAt
+      - status
+    properties:
+      id:
+        type: string
+      dealershipId:
+        type: string
+      customerId:
+        type: string
+      vehicleId:
+        type: string
+      serviceTypeId:
+        type: string
+      serviceBayId:
+        type: string
+      technicianId:
+        type: string
+      startAt:
+        type: string
+        format: date-time
+      endAt:
+        type: string
+        format: date-time
+      status:
+        type: string
+        enum:
+          - CONFIRMED
+  AppointmentPage:
+    type: object
+    required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+      - first
+      - last
+    properties:
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          example:
-            code: INVALID_REQUEST
-            message: Request validation failed.
-    NotFound:
-      description: A referenced dealership, customer, vehicle, service type, or appointment was not found.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          example:
-            code: NOT_FOUND
-            message: Appointment not found.
-  schemas:
-    BookingRequest:
-      type: object
-      required:
-        - dealershipId
-        - customerId
-        - vehicleId
-        - serviceTypeId
-        - startAt
-      properties:
-        dealershipId:
-          type: string
-          minLength: 1
-          maxLength: 64
-          description: Must not be blank.
-        customerId:
-          type: string
-          minLength: 1
-          maxLength: 64
-          description: Must not be blank.
-        vehicleId:
-          type: string
-          minLength: 1
-          maxLength: 64
-          description: Must not be blank.
-        serviceTypeId:
-          type: string
-          minLength: 1
-          maxLength: 64
-          description: Must not be blank.
-        startAt:
-          type: string
-          format: date-time
-          description: ISO-8601 timestamp with an offset; normalized to UTC.
-    AppointmentResponse:
-      type: object
-      required:
-        - id
-        - dealershipId
-        - customerId
-        - vehicleId
-        - serviceTypeId
-        - serviceBayId
-        - technicianId
-        - startAt
-        - endAt
-        - status
-      properties:
-        id:
-          type: string
-        dealershipId:
-          type: string
-        customerId:
-          type: string
-        vehicleId:
-          type: string
-        serviceTypeId:
-          type: string
-        serviceBayId:
-          type: string
-        technicianId:
-          type: string
-        startAt:
-          type: string
-          format: date-time
-        endAt:
-          type: string
-          format: date-time
-        status:
-          type: string
-          enum:
-            - CONFIRMED
-    AppointmentPage:
-      type: object
-      required:
-        - content
-        - page
-        - size
-        - totalElements
-        - totalPages
-        - first
-        - last
-      properties:
-        content:
-          type: array
-          items:
-            $ref: '#/components/schemas/AppointmentResponse'
-        page:
-          type: integer
-        size:
-          type: integer
-        totalElements:
-          type: integer
-          format: int64
-        totalPages:
-          type: integer
-        first:
-          type: boolean
-        last:
-          type: boolean
-    ServiceTypeResponse:
-      type: object
-      required:
-        - id
-        - name
-        - durationMinutes
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        durationMinutes:
-          type: integer
-    ResourceSummary:
-      type: object
-      required:
-        - dealershipId
-        - serviceBays
-        - technicians
-      properties:
-        dealershipId:
-          type: string
-        serviceBays:
-          type: array
-          items:
-            $ref: '#/components/schemas/Resource'
-        technicians:
-          type: array
-          items:
-            $ref: '#/components/schemas/Resource'
-    Resource:
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-    ApiError:
-      type: object
-      required:
-        - code
-        - message
-      properties:
-        code:
-          type: string
-          enum:
-            - INVALID_REQUEST
-            - NOT_FOUND
-            - SLOT_UNAVAILABLE
-            - VEHICLE_ALREADY_BOOKED
-            - IDEMPOTENCY_KEY_REUSED
-        message:
-          type: string
+        type: array
+        items:
+          $ref: '#/definitions/AppointmentResponse'
+      page:
+        type: integer
+      size:
+        type: integer
+      totalElements:
+        type: integer
+        format: int64
+      totalPages:
+        type: integer
+      first:
+        type: boolean
+      last:
+        type: boolean
+  ServiceTypeResponse:
+    type: object
+    required:
+      - id
+      - name
+      - durationMinutes
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      durationMinutes:
+        type: integer
+  ResourceSummary:
+    type: object
+    required:
+      - dealershipId
+      - serviceBays
+      - technicians
+    properties:
+      dealershipId:
+        type: string
+      serviceBays:
+        type: array
+        items:
+          $ref: '#/definitions/Resource'
+      technicians:
+        type: array
+        items:
+          $ref: '#/definitions/Resource'
+  Resource:
+    type: object
+    required:
+      - id
+      - name
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+  ApiError:
+    type: object
+    required:
+      - code
+      - message
+    properties:
+      code:
+        type: string
+        enum:
+          - INVALID_REQUEST
+          - NOT_FOUND
+          - SLOT_UNAVAILABLE
+          - VEHICLE_ALREADY_BOOKED
+          - IDEMPOTENCY_KEY_REUSED
+      message:
+        type: string

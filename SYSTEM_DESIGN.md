@@ -22,6 +22,8 @@ Replace manual service booking with a backend that confirms an appointment only 
 flowchart LR
     Client[Web client / cURL]
     API[Spring MVC controllers]
+    Swagger[Swagger UI<br/>developer documentation]
+    Contract[Swagger 2.0 contract<br/>openapi.yaml]
     Service[Services<br/>booking rules + transactions]
     Repo[Spring Data JPA repositories]
     Entities[JPA entities]
@@ -31,6 +33,8 @@ flowchart LR
     Obs[Actuator / Micrometer<br/>correlation ID logs]
 
     Client -->|HTTPS in production| API
+    Swagger --> Contract
+    Swagger -. Try it out .-> API
     API -->|request mapping + validation| Service
     Service --> Repo
     Repo --> Entities
@@ -64,6 +68,7 @@ The domain objects are plain Java classes in `domain/`, while persistence-only J
 | `controller/CorrelationIdFilter` | Validates or generates `X-Correlation-ID`, echoes it in the response, and places it in log MDC |
 | `OperationMetricsAspect` | AOP advice times annotated application operations and records bounded `operation`/`outcome` tags |
 | Spring Boot Actuator / Micrometer | Health and HTTP/JVM/application metrics at `/actuator/health` and `/actuator/metrics` |
+| Swagger UI | Developer-facing API explorer at `/swagger-ui/index.html`; loads the static Swagger 2.0 contract at `/openapi.yaml` |
 
 ## Booking data flow
 
@@ -160,7 +165,7 @@ The project uses **RESTful HTTP APIs** for operations where the caller needs an 
 
 API version is in the URL to make incompatible contract evolution explicit. Error responses have a stable `code` and human-readable `message`.
 
-The endpoint inventory and detailed booking sequence are in [api-service-contracts.md](./.github/modernize/assessment/engines/facts/api-service-contracts.md). The API contract is defined in [openapi.yaml](./openapi.yaml), and a runnable client collection is available at [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json).
+The endpoint inventory and detailed booking sequence are in [api-service-contracts.md](./.github/modernize/assessment/engines/facts/api-service-contracts.md). The API contract is defined in [openapi.yaml](./openapi.yaml) using OpenAPI 2.0 (Swagger 2.0); the developer-facing Swagger UI at `/swagger-ui/index.html` loads this static file and its “Try it out” feature calls the running API. The contract is not generated from controller code. A runnable client collection is available at [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json).
 
 ## Technology choices
 
@@ -171,6 +176,7 @@ The endpoint inventory and detailed booking sequence are in [api-service-contrac
 - **Flyway:** schema changes are versioned and applied consistently; Hibernate validates rather than silently changing production schema.
 - **Ehcache 3 via JCache:** local bounded TTL cache for relatively stable lookup data. No appointment, availability, or customer data is cached.
 - **Spring Boot Actuator / Micrometer:** health and standard application metrics.
+- **Swagger UI:** browser-based API exploration that loads the static Swagger 2.0 contract; it is not a customer booking interface.
 - **Spring AOP:** records booking-use-case duration and success/error outcomes with low-cardinality metric tags.
 - **Configuration:** Spring Boot settings are YAML-based, with `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` environment variables overriding PostgreSQL connection defaults. Spring Boot does not load `.env` files; Docker Compose reads the project-root `.env` for interpolation and passes the resulting password into the database and app containers. `application-prod.yaml` selects schema-only Flyway migrations, while Compose explicitly loads local demo fixtures for the assessment environment.
 - **Tomcat / HikariCP sizing:** local defaults bound the request worker pool and JDBC connections; these are starting values, not capacity guarantees. Measure and tune using workload tests and database connection limits.
@@ -215,7 +221,7 @@ Tomcat uses a five-second connection/request-line wait, 50 worker threads, 200 m
 
 ## Testing strategy
 
-The service has no browser UI, so its end-to-end tier exercises the running API over HTTP rather than browser rendering.
+The service has no customer-facing browser application; Swagger UI is limited to developer API documentation. Its end-to-end tier exercises the API over HTTP rather than customer booking workflows in a browser.
 
 | Test level | Test scope | Infrastructure |
 |---|---|---|
@@ -228,7 +234,7 @@ The database test fixtures are loaded by Flyway in disposable containers. Reques
 
 ## Local container deployment
 
-`docker-compose.yml` runs the API and PostgreSQL with a named database volume and health-gated startup. Compose reads `POSTGRES_PASSWORD` from the project-root `.env` file and passes it to both containers; Spring Boot itself reads the resulting `DB_PASSWORD` environment variable, not the `.env` file. The multi-stage `Dockerfile` compiles/tests with Java 8 and runs the packaged app as a non-root user. Compose activates the production-style schema-only profile but explicitly enables demo fixtures for this disposable local assessment environment. This is not a production deployment template; production should inject credentials from a secret manager, remove public host port exposure as appropriate, pin/scan image digests, and provision master data through its owning integration. Ehcache, Spring AOP, and Actuator are included in or run inside the application; there is no event broker because asynchronous event publishing is not yet implemented.
+`docker-compose.yml` runs the API and PostgreSQL with a named database volume and health-gated startup. Compose reads `POSTGRES_PASSWORD` from the project-root `.env` file and passes it to both containers; Spring Boot itself reads the resulting `DB_PASSWORD` environment variable, not the `.env` file. The multi-stage `Dockerfile` compiles/tests with Java 8 and runs the packaged app as a non-root user. Compose activates the production-style schema-only profile but explicitly enables demo fixtures for this disposable local assessment environment. The API and interactive Swagger UI are available on the local API port; the UI loads the packaged static contract at `/openapi.yaml`. This is not a production deployment template; production should inject credentials from a secret manager, remove public host port exposure as appropriate, pin/scan image digests, and provision master data through its owning integration. Ehcache, Spring AOP, Actuator, and Swagger UI are included in or run inside the application; there is no event broker because asynchronous event publishing is not yet implemented.
 
 See [business-workflows.md](./.github/modernize/assessment/engines/facts/business-workflows.md) for the complete booking workflow and sequence diagram.
 
@@ -252,7 +258,7 @@ All database integration tests use PostgreSQL Testcontainers. See [runtime-valid
 
 ## Known gaps
 
-- No client UI, appointment-list filters, cancellation/rescheduling, notifications, or external dealership/customer master-data integration.
+- No customer-facing client UI, appointment-list filters, cancellation/rescheduling, notifications, or external dealership/customer master-data integration. Swagger UI is only a developer API explorer.
 - No production authentication/authorization or rate limiting.
 - In the verified Docker environment, Testcontainers required `-Dapi.version=1.40`; use this override if Docker rejects the default API version.
 - The current idempotency table has no automated purge; define retention/cleanup only after agreeing how long clients may safely retry.

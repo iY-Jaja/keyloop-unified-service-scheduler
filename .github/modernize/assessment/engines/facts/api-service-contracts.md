@@ -30,7 +30,7 @@ All application endpoints use URL path versioning (`/api/v1`). Error responses u
 | Unified Service Scheduler | `/actuator/metrics` | Lists available Micrometer metrics |
 | Unified Service Scheduler | `/actuator/metrics/scheduler.application.operation` | `scheduler.application.operation`, tagged with bounded `operation` and `outcome` values |
 
-The configured Actuator exposure includes health, info, and metrics. The application does not currently export metrics to Prometheus or traces to an OpenTelemetry backend.
+The configured Actuator exposure includes health, info, and metrics. The application does not currently export metrics to Prometheus or traces to an OpenTelemetry backend. Developer API documentation is available at `/swagger-ui/index.html`, which loads the static Swagger 2.0 contract from `/openapi.yaml`; these are documentation resources, not business API operations.
 
 ## DTOs & Contracts
 
@@ -41,7 +41,7 @@ The configured Actuator exposure includes health, info, and metrics. The applica
 - `ResourceSummary` represents dealership service bays and technicians.
 - `ApiError` represents stable error responses.
 
-These are API-level transport models; the project does not define gateway aggregation DTOs. Response DTO fields are final where applicable, while request `BookingRequest` is mutable for Jackson deserialization. JSON serialization/deserialization uses Spring Boot's Jackson integration. The static OpenAPI contract is maintained in [`openapi.yaml`](../../../../../openapi.yaml); it documents the API but is not served by a runtime Swagger UI endpoint.
+These are API-level transport models; the project does not define gateway aggregation DTOs. Response DTO fields are final where applicable, while request `BookingRequest` is mutable for Jackson deserialization. JSON serialization/deserialization uses Spring Boot's Jackson integration. The OpenAPI 2.0 (Swagger 2.0) contract is maintained in [`openapi.yaml`](../../../../../openapi.yaml) and served as a static resource at `/openapi.yaml`; Swagger UI at `/swagger-ui/index.html` loads this contract for interactive API documentation.
 
 ## Communication Patterns
 

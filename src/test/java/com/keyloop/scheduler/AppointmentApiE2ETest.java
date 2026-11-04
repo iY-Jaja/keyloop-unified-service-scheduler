@@ -52,6 +52,28 @@ class AppointmentApiE2ETest {
     private ObjectMapper objectMapper;
 
     @Test
+    void servesSwaggerUiAndSwaggerTwoContract() {
+        String baseUrl = "http://localhost:" + port;
+
+        ResponseEntity<String> swaggerUi = restTemplate.getForEntity(
+                baseUrl + "/swagger-ui/index.html", String.class);
+        assertEquals(HttpStatus.OK, swaggerUi.getStatusCode());
+        assertTrue(swaggerUi.getBody().contains("/openapi.yaml"));
+
+        ResponseEntity<String> contract = restTemplate.getForEntity(
+                baseUrl + "/openapi.yaml", String.class);
+        assertEquals(HttpStatus.OK, contract.getStatusCode());
+        assertTrue(contract.getBody().startsWith("swagger: '2.0'"));
+
+        ResponseEntity<Void> swaggerBundle = restTemplate.exchange(
+                baseUrl + "/webjars/swagger-ui/5.17.14/swagger-ui-bundle.js",
+                HttpMethod.HEAD,
+                null,
+                Void.class);
+        assertEquals(HttpStatus.OK, swaggerBundle.getStatusCode());
+    }
+
+    @Test
     void booksAppointmentThenReadsItAndFindsItInPaginatedList() throws Exception {
         String baseUrl = "http://localhost:" + port + "/api/v1";
         String idempotencyKey = UUID.randomUUID().toString();
