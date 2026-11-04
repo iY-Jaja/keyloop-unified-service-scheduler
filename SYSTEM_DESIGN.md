@@ -78,6 +78,74 @@ The domain objects are plain Java classes in `domain/`, while persistence-only J
 
 The idempotency record and appointment commit atomically: a failed booking rolls back the key claim too. Dealership and vehicle row locks make the read-check-write sequence safe under PostgreSQL's normal `READ COMMITTED` isolation for application-originated bookings. The overlap query is supported by an index on vehicle, status, and interval fields. All database integration tests use PostgreSQL Testcontainers so functional and concurrency checks exercise the selected database.
 
+### Booking sequence diagram
+
+The sequence below shows the synchronous booking path, including idempotency replay, conflict responses, and the transaction that persists a successful booking.
+
+<!-- mermaid-checked: every participant uses `participant Id as "Label"`, no \n in aliases/messages/notes, every alt/opt/loop closed by end, no `:` inside any alias -->
+```mermaid
+sequenceDiagram
+    participant Client as "API Client"
+    participant Filter as "Correlation ID Filter"
+    participant Controller as "Appointment Controller"
+    participant Booking as "Booking Service"
+    participant Writer as "Transactional Booking Writer"
+    participant Repositories as "JPA Repositories"
+    participant Database as "PostgreSQL"
+
+    Client->>Filter: POST appointment with Idempotency-Key
+    Filter->>Controller: Forward request with correlation ID
+    Controller->>Controller: Validate request and required header
+    alt Invalid request
+        Controller-->>Client: 400 INVALID_REQUEST with correlation ID
+    else Valid request
+        Controller->>Booking: Create appointment
+        Booking->>Writer: Request and normalized fingerprint
+        Writer->>Repositories: Lock dealership and read idempotency state
+        Repositories->>Database: Read dealership and idempotency record
+        Database-->>Repositories: Dealership and idempotency state
+        Repositories-->>Writer: Dealership and idempotency state
+        alt Same key and same request
+            Writer->>Repositories: Load previously booked appointment
+            Repositories-->>Writer: Existing appointment
+            Writer-->>Controller: Replay original appointment
+            Controller-->>Client: 201 Created with Location
+        else Same key with different request
+            Writer-->>Controller: 409 IDEMPOTENCY_KEY_REUSED
+            Controller-->>Client: Error response with correlation ID
+        else New idempotency key
+            Writer->>Repositories: Lock vehicle and load booking data
+            Repositories->>Database: Read vehicle and booking references
+            Database-->>Repositories: Vehicle customer and service type
+            Repositories-->>Writer: Booking reference data
+            Writer->>Repositories: Check vehicle interval for conflicts
+            Repositories->>Database: Query overlapping confirmed appointments
+            Database-->>Repositories: Conflict status
+            Repositories-->>Writer: Vehicle availability
+            alt Vehicle already booked
+                Writer-->>Controller: 409 VEHICLE_ALREADY_BOOKED
+                Controller-->>Client: Error response with correlation ID
+            else Vehicle available
+                Writer->>Repositories: Claim idempotency key and check resources
+                Repositories->>Database: Save key and query resource availability
+                Database-->>Repositories: Resource availability
+                Repositories-->>Writer: Selected resources or none
+                alt No bay or qualified technician available
+                    Writer-->>Controller: 409 SLOT_UNAVAILABLE
+                    Controller-->>Client: Error response with correlation ID
+                else Resources available
+                    Writer->>Repositories: Save confirmed appointment
+                    Repositories->>Database: Insert appointment and commit transaction
+                    Database-->>Repositories: Commit appointment
+                    Repositories-->>Writer: Confirmed appointment
+                    Writer-->>Controller: Return appointment
+                    Controller-->>Client: 201 Created with Location and correlation ID
+                end
+            end
+        end
+    end
+```
+
 ## API contract
 
 The project uses **RESTful HTTP APIs** for operations where the caller needs an immediate result: service/resource queries and booking confirmation or conflict. The `Idempotency-Key` protects retried booking requests. Paths are resource-oriented, versions are explicit (`/api/v1`), and HTTP status codes distinguish created, invalid, missing, and conflicting requests.
