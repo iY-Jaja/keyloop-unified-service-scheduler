@@ -129,6 +129,82 @@ class AppointmentApiIntegrationTest {
     }
 
     @Test
+    void allowsBackToBackAppointmentsForTheSameVehicle() throws Exception {
+        OffsetDateTime firstStart = OffsetDateTime.now(ZoneOffset.UTC).plusDays(5);
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingRequest(firstStart)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingRequest(firstStart.plusMinutes(60))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void returnsSlotUnavailableWhenDealershipHasNoQualifiedTechnician() throws Exception {
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingRequest(OffsetDateTime.now(ZoneOffset.UTC).plusDays(6),
+                                "brake-service")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", equalTo("SLOT_UNAVAILABLE")));
+    }
+
+    @Test
+    void rejectsBookingWhenVehicleBelongsToAnotherCustomer() throws Exception {
+        String request = bookingRequest("dealer-1", "customer-2", "vehicle-1",
+                "oil-change", OffsetDateTime.now(ZoneOffset.UTC).plusDays(7));
+
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", equalTo("INVALID_REQUEST")));
+    }
+
+    @Test
+    void rejectsAppointmentStartTimeInThePast() throws Exception {
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingRequest(OffsetDateTime.now(ZoneOffset.UTC).minusHours(1))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", equalTo("INVALID_REQUEST")));
+    }
+
+    @Test
+    void returnsNotFoundForUnknownDealership() throws Exception {
+        String request = bookingRequest("dealer-missing", "customer-1", "vehicle-1",
+                "oil-change", OffsetDateTime.now(ZoneOffset.UTC).plusDays(8));
+
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
+    void returnsNotFoundForUnknownServiceType() throws Exception {
+        String request = bookingRequest("dealer-1", "customer-1", "vehicle-1",
+                "service-missing", OffsetDateTime.now(ZoneOffset.UTC).plusDays(9));
+
+        mockMvc.perform(post("/api/v1/appointments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", equalTo("NOT_FOUND")));
+    }
+
+    @Test
     void concurrentRequestsCannotDoubleBookTheSameVehicle() throws Exception {
         OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC).plusDays(4);
         CountDownLatch ready = new CountDownLatch(2);
@@ -228,13 +304,19 @@ class AppointmentApiIntegrationTest {
     }
 
     private String bookingRequest(OffsetDateTime startAt, String serviceTypeId) throws Exception {
-        return objectMapper.writeValueAsString(new BookingPayload(startAt, serviceTypeId));
+        return bookingRequest("dealer-1", "customer-1", "vehicle-1", serviceTypeId, startAt);
+    }
+
+    private String bookingRequest(String dealershipId, String customerId, String vehicleId,
+                                  String serviceTypeId, OffsetDateTime startAt) throws Exception {
+        return objectMapper.writeValueAsString(
+                new BookingPayload(dealershipId, customerId, vehicleId, serviceTypeId, startAt));
     }
 
     public static class BookingPayload {
-        public String dealershipId = "dealer-1";
-        public String customerId = "customer-1";
-        public String vehicleId = "vehicle-1";
+        public String dealershipId;
+        public String customerId;
+        public String vehicleId;
         public String serviceTypeId;
         public OffsetDateTime startAt;
 
@@ -243,6 +325,14 @@ class AppointmentApiIntegrationTest {
         }
 
         public BookingPayload(OffsetDateTime startAt, String serviceTypeId) {
+            this("dealer-1", "customer-1", "vehicle-1", serviceTypeId, startAt);
+        }
+
+        public BookingPayload(String dealershipId, String customerId, String vehicleId,
+                              String serviceTypeId, OffsetDateTime startAt) {
+            this.dealershipId = dealershipId;
+            this.customerId = customerId;
+            this.vehicleId = vehicleId;
             this.startAt = startAt;
             this.serviceTypeId = serviceTypeId;
         }

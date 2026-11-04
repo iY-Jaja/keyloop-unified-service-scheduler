@@ -92,9 +92,11 @@ The project uses **RESTful HTTP APIs** for operations where the caller needs an 
 
 API version is in the URL to make incompatible contract evolution explicit. Error responses have a stable `code` and human-readable `message`.
 
+The endpoint inventory and detailed booking sequence are in [api-service-contracts.md](./.github/modernize/assessment/engines/facts/api-service-contracts.md). A runnable client collection is available at [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json).
+
 ## Technology choices
 
-- **Java 8 / Spring Boot 2.7.18:** matches the requested runtime and provides mature MVC, validation, transaction, and JPA support. Keep the Java source/bytecode level at 8. Boot 2.7 is now an older line, so a supported Spring Boot upgrade should be planned outside this assessment.
+- **Java 8 / Spring Boot 2.7.18:** preserves Java 8 bytecode compatibility and provides MVC, validation, transaction, and JPA support. Spring Boot 2.7 is an older line; plan an upgrade to a supported release outside this assessment.
 - **Spring Data JPA / Hibernate:** persistence abstraction and transaction support, with explicit repositories and schema constraints.
 - **PostgreSQL:** the application's only database; transactions and row-level pessimistic locks protect resource allocation across app instances.
 - **Testcontainers:** PostgreSQL integration tests exercise database migrations, booking behavior, row locking, and idempotent retries. Docker must be available to execute these tests.
@@ -102,7 +104,7 @@ API version is in the URL to make incompatible contract evolution explicit. Erro
 - **Ehcache 3 via JCache:** local bounded TTL cache for relatively stable lookup data. No appointment, availability, or customer data is cached.
 - **Spring Boot Actuator / Micrometer:** health and standard application metrics.
 - **Spring AOP:** records booking-use-case duration and success/error outcomes with low-cardinality metric tags.
-- **YAML configuration:** `application.yaml` holds PostgreSQL connection defaults and local demo fixture locations; `application-prod.yaml` selects schema-only Flyway migrations. Docker Compose explicitly loads local demo fixtures for the assessment environment.
+- **Configuration:** Spring Boot settings are YAML-based, with `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` environment variables overriding PostgreSQL connection defaults. Spring Boot does not load `.env` files; Docker Compose reads the project-root `.env` for interpolation and passes the resulting password into the database and app containers. `application-prod.yaml` selects schema-only Flyway migrations, while Compose explicitly loads local demo fixtures for the assessment environment.
 - **Tomcat / HikariCP sizing:** local defaults bound the request worker pool and JDBC connections; these are starting values, not capacity guarantees. Measure and tune using workload tests and database connection limits.
 
 ## Architecture and design patterns
@@ -154,11 +156,11 @@ The service has no browser UI, so its end-to-end tier exercises the running API 
 | Integration | `AppointmentApiIntegrationTest` and `PostgreSqlBookingTest` verify full application behavior and database invariants | Full Spring context, MockMvc, PostgreSQL Testcontainers |
 | API E2E | `AppointmentApiE2ETest` verifies booking, persistence read-back, pagination, and replay via a random-port HTTP server | Running Spring Boot application and PostgreSQL Testcontainers |
 
-The database test fixtures are loaded by Flyway in disposable containers. Requests use unique idempotency keys and future appointment times; containers are isolated per test class. The assessment service does not implement authentication, so tests cover malformed requests and missing idempotency headers instead of authentication failures. Docker must be reachable by Testcontainers for integration and API E2E suites to execute; skipped container tests must not be reported as passed. With Docker Engine 29, run Maven with `-Dapi.version=1.40` because its minimum supported API version is newer than the version selected by this Testcontainers setup by default.
+The database test fixtures are loaded by Flyway in disposable containers. Requests use unique idempotency keys and future appointment times; containers are isolated per test class. The assessment service does not implement authentication, so tests cover malformed requests and missing idempotency headers instead of authentication failures. Docker must be reachable by Testcontainers for integration and API E2E suites to execute; skipped container tests must not be reported as passed. In the validated environment, Maven required `-Dapi.version=1.40` because the Docker daemon did not accept the default API version selected by Testcontainers.
 
 ## Local container deployment
 
-`docker-compose.yml` runs the API and PostgreSQL with a named database volume and health-gated startup. The multi-stage `Dockerfile` compiles/tests with Java 8 and runs the packaged app as a non-root user. Compose activates the production-style schema-only profile but explicitly enables demo fixtures for this disposable local assessment environment. This is not a production deployment template; production should inject credentials from a secret manager, remove public host port exposure as appropriate, pin/scan image digests, and provision master data through its owning integration. Ehcache, Spring AOP, and Actuator are included in or run inside the application; there is no event broker because asynchronous event publishing is not yet implemented.
+`docker-compose.yml` runs the API and PostgreSQL with a named database volume and health-gated startup. Compose reads `POSTGRES_PASSWORD` from the project-root `.env` file and passes it to both containers; Spring Boot itself reads the resulting `DB_PASSWORD` environment variable, not the `.env` file. The multi-stage `Dockerfile` compiles/tests with Java 8 and runs the packaged app as a non-root user. Compose activates the production-style schema-only profile but explicitly enables demo fixtures for this disposable local assessment environment. This is not a production deployment template; production should inject credentials from a secret manager, remove public host port exposure as appropriate, pin/scan image digests, and provision master data through its owning integration. Ehcache, Spring AOP, and Actuator are included in or run inside the application; there is no event broker because asynchronous event publishing is not yet implemented.
 
 See [business-workflows.md](./.github/modernize/assessment/engines/facts/business-workflows.md) for the complete booking workflow and sequence diagram.
 
@@ -170,16 +172,20 @@ See [business-workflows.md](./.github/modernize/assessment/engines/facts/busines
 - The sample API has no authentication. Before production, use OAuth2/OIDC or an equivalent identity mechanism, enforce dealership/customer authorization on every read and write, apply rate limits, and protect the DB and Actuator endpoints.
 - PII and VINs should be encrypted in transit and protected at rest according to deployment policy. Never place appointment data in the shared lookup cache.
 
-## AI collaboration narrative
+## GenAI use during system design
 
-Perplexity, Claude, and GitHub Copilot were used as tools to analyze the assessment and evaluate design thinking. AI helped explore Java 8/Spring Boot 2.x constraints, transaction boundaries, idempotency, caching, booking edge cases, and the trade-off between Hexagonal Architecture and conventional MVC layers. The architecture and implementation decisions remained mine; AI suggestions were treated as ideas to assess against the scenario, not as authoritative answers.
+I used Perplexity, Claude, and GitHub Copilot as design collaborators while interpreting Scenario A and shaping the architecture. I used them to explore the problem space and challenge my assumptions—not to make design decisions on my behalf. I first broke the scenario into the important design questions: how to represent the requested service interval, how to ensure both resources remain available for its full duration, how to handle two requests arriving together, what a caller should receive when a booking succeeds or conflicts, and which supporting concerns were actually needed for the assessment.
 
-Verification focuses on the critical behavior: full-duration availability for both resources, qualified technician assignment, vehicle overlap prevention, idempotent retry behavior, persistence, and pagination freshness/bounds. All database integration tests use PostgreSQL Testcontainers. The complete Maven suite was run with `-Dapi.version=1.40`: 19 tests passed, with zero failures, errors, or skips. This compatibility override is needed with Docker Engine 29 because the daemon rejects the older API version selected by the Testcontainers setup by default.
+I then considered alternatives against those requirements and the project constraints. For example, I compared a conventional layered MVC structure with Hexagonal Architecture and chose MVC because it provides clear controller, service, and persistence responsibilities without adding abstraction that this small backend did not need. I kept booking synchronous over REST because the caller needs an immediate confirmation or conflict. For concurrent bookings, I chose a PostgreSQL transaction with pessimistic dealership and vehicle locks, plus persistent idempotency records, so resource checks and writes are coordinated in the database. I kept caching to relatively stable reference data and left live availability uncached. I documented an outbox and event broker as a possible future extension, rather than adding infrastructure without a current asynchronous consumer.
+
+I treated AI suggestions as hypotheses to verify. I checked the resulting design against the booking flow and implementation, then used PostgreSQL-backed tests to exercise full-duration resource assignment, overlapping and concurrent bookings, idempotent retries, persistence, and pagination. That verification helped refine the design and exposed assumptions and operational trade-offs to document, including the absence of authentication and the local-only role of demo data. The final architecture and scope choices are mine; GenAI helped me compare options, identify edge cases, and communicate the reasoning.
+
+All database integration tests use PostgreSQL Testcontainers. See [runtime-validation-report.md](./runtime-validation-report.md) for the latest recorded command, environment, and results.
 
 ## Known gaps
 
 - No client UI, appointment-list filters, cancellation/rescheduling, notifications, or external dealership/customer master-data integration.
 - No production authentication/authorization or rate limiting.
-- With Docker Engine 29, the Testcontainers run requires `-Dapi.version=1.40`; otherwise Docker discovery may fail because the daemon rejects the older default API version.
+- In the verified Docker environment, Testcontainers required `-Dapi.version=1.40`; use this override if Docker rejects the default API version.
 - The current idempotency table has no automated purge; define retention/cleanup only after agreeing how long clients may safely retry.
 - Hibernate Types (Hypersistence Utils) is not included because the current model uses standard JPA types. Add it only if a concrete PostgreSQL-specific mapping such as JSONB or arrays is introduced.

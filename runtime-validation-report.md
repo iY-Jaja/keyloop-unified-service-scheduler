@@ -1,46 +1,39 @@
 # Runtime Validation Report
 
-**Generated:** 2026-11-03T22:51:01+07:00  
-**Target:** `/Users/giap92446/Downloads/keyloop`
+**Validated:** 2026-11-04
+**Scope:** Scenario A backend in this repository
 
-## Summary
+## Result
 
-| Test level | Status | Exit code | Results |
-|---|---|---:|---|
-| Startup/readiness | PASS | 0 | Existing Compose API readiness endpoint returned `{"status":"UP"}` |
-| Unit | PASS | 0 | `BookingServiceTest`: 4 passed |
-| Component | PASS | 0 | `AppointmentControllerTest`: 3 passed |
-| Integration | PASS | 0 | `AppointmentApiIntegrationTest` and `PostgreSqlBookingTest`: 10 passed against PostgreSQL Testcontainers |
-| API E2E | PASS | 0 | Random-port HTTP E2E suite: 2 passed against PostgreSQL Testcontainers |
-| Full Maven suite | PASS | 0 | 19 tests passed, 0 failures, 0 errors, 0 skipped |
+| Test level | Test class(es) | Passed | Failed | Errors | Skipped |
+|---|---|---:|---:|---:|---:|
+| Unit | `BookingServiceTest` | 4 | 0 | 0 | 0 |
+| Component | `AppointmentControllerTest` | 3 | 0 | 0 | 0 |
+| Integration | `AppointmentApiIntegrationTest`, `PostgreSqlBookingTest` | 16 | 0 | 0 | 0 |
+| API E2E | `AppointmentApiE2ETest` | 2 | 0 | 0 | 0 |
+| **Total** | **Full Maven suite** | **25** | **0** | **0** | **0** |
 
-## Environment
+The full Maven build completed successfully. The integration and API E2E tests ran against PostgreSQL Testcontainers; none were skipped.
 
-- Docker CLI and daemon: available; Docker Engine 29.9.1 reports API version 1.56 and minimum API version 1.40.
-- Docker daemon through Testcontainers: available with Maven system property `-Dapi.version=1.40`. Without the override, Testcontainers' Docker client requested API v1.32 and received HTTP 400 because that version is below the daemon's minimum.
-- Node.js: available (`v24.21.0`).
-- Browser E2E: not applicable; this project is a REST API and has no browser UI.
-- API readiness: `http://localhost:8080/actuator/health/readiness` returned HTTP 200 and `{"status":"UP"}` for the already-running Compose service.
-
-## Test levels added
-
-| Test class | Level | Coverage |
-|---|---|---|
-| `BookingServiceTest` | Unit | Request fingerprinting, idempotency replay, changed-payload conflict, and propagation of unrelated persistence errors |
-| `AppointmentControllerTest` | Component | MVC routing, request validation, response/Location mapping, page metadata, and stable error response |
-| `AppointmentApiIntegrationTest` | Integration | Full Spring context and MockMvc against PostgreSQL Testcontainers |
-| `PostgreSqlBookingTest` | Integration | Concurrent bookings across dealerships and idempotency races against PostgreSQL Testcontainers |
-| `AppointmentApiE2ETest` | API E2E | Real random-port HTTP booking, persistence read-back, paginated listing, idempotent replay, and invalid-request handling |
-
-The assessment service does not implement authentication, so tests verify malformed requests and missing idempotency headers instead of authentication failures.
-
-## Commands
+## Validation command
 
 ```bash
-mvn -Dapi.version=1.40 -Dtest=BookingServiceTest,AppointmentControllerTest test
-mvn -Dapi.version=1.40 -Dtest=AppointmentApiIntegrationTest,PostgreSqlBookingTest test
-mvn -Dapi.version=1.40 -Dtest=AppointmentApiE2ETest test
 mvn -Dapi.version=1.40 clean test
 ```
 
-Surefire reports are generated under `target/surefire-reports/`.
+The `api.version` override was needed for Testcontainers to communicate with the Docker daemon in this environment. Without a compatible Docker API version, container-backed tests cannot be treated as verified.
+
+## Coverage
+
+- **Unit:** request fingerprinting, idempotency replay and key-reuse conflicts, and persistence-error propagation.
+- **Component:** controller routing, validation, response and `Location` mapping, pagination metadata, and stable error responses.
+- **Integration:** booking with qualified resources, full-duration overlap prevention, back-to-back bookings at interval boundaries, unavailable technician handling, customer/vehicle ownership checks, past appointment rejection, unknown dealership/service type errors, pagination, and concurrent booking/idempotency behavior.
+- **API E2E:** booking over HTTP, persistence read-back, paginated listing, idempotent replay, and invalid-request handling.
+
+The application does not implement authentication, so tests cover malformed or missing request data rather than authentication failures. Browser E2E testing is not applicable because this project exposes a REST API and has no browser UI.
+
+## Readiness check
+
+The existing Compose API returned HTTP 200 with `{"status":"UP"}` from `http://localhost:8080/actuator/health/readiness` during this validation.
+
+Surefire reports are available under `target/surefire-reports/`.
