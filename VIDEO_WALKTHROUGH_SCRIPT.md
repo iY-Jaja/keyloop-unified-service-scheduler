@@ -92,7 +92,7 @@ Use this as speaking notes, not a word-for-word performance. Replace bracketed t
 
 > “I tested the service at four levels. Unit tests cover booking orchestration and idempotency logic. Component tests cover the HTTP controller and response behavior. PostgreSQL integration tests exercise resource assignment, overlap and concurrency behavior, ownership checks, validation, and pagination. API end-to-end tests send real HTTP requests to a running application and verify persistence and read-back.
 >
-> I ran `mvn -Dapi.version=1.40 clean test`. The full suite passed: 25 tests, zero failures, and zero skipped tests. The integration and end-to-end tests used PostgreSQL Testcontainers. The API readiness check also returned `UP`. The report records the command and results.”
+> I ran `mvn -Dapi.version=1.40 clean test`. The full suite passed: 26 tests, zero failures, and zero skipped tests. The integration and end-to-end tests used PostgreSQL Testcontainers. The API readiness check also returned `UP`. The report records the command and results.”
 
 ## 5. GenAI collaboration — 5:20–6:50
 
@@ -112,9 +112,9 @@ Use this as speaking notes, not a word-for-word performance. Replace bracketed t
 
 **Say:**
 
-> “One of the main challenges was handling concurrent bookings. A simple availability check is not enough if two requests can pass the check at the same time. The transaction and row locks, together with the PostgreSQL concurrency tests, address that risk for bookings made through this application.
+> “I found the business requirement itself clear and straightforward. The part that needed careful implementation was making the availability check and booking safe if requests arrive at the same time. A simple check by itself could let two requests claim the same resources, so I used a transaction and row locks and tested concurrent bookings with PostgreSQL.
 >
-> I also learned to distinguish a retry from a new booking attempt: idempotency handles the retry, while availability rules reject a genuinely conflicting appointment.
+> I also made retries safe with idempotency: repeating the same request replays its original result, while a genuinely conflicting booking is rejected by the availability rules.
 >
 > This is an assessment implementation, not a production-ready service. Production follow-ups include authentication and authorization, load testing, deployment-grade secrets management, and distributed tracing and dashboards. Thank you for watching.”
 

@@ -3,6 +3,7 @@ FROM maven:3.9.9-eclipse-temurin-8 AS build
 WORKDIR /workspace
 COPY pom.xml .
 COPY src ./src
+COPY openapi.yaml .
 RUN mvn -B -ntp package
 
 FROM eclipse-temurin:8-jre
