@@ -160,7 +160,7 @@ The project uses **RESTful HTTP APIs** for operations where the caller needs an 
 
 API version is in the URL to make incompatible contract evolution explicit. Error responses have a stable `code` and human-readable `message`.
 
-The endpoint inventory and detailed booking sequence are in [api-service-contracts.md](./.github/modernize/assessment/engines/facts/api-service-contracts.md). A runnable client collection is available at [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json).
+The endpoint inventory and detailed booking sequence are in [api-service-contracts.md](./.github/modernize/assessment/engines/facts/api-service-contracts.md). The API contract is defined in [openapi.yaml](./openapi.yaml), and a runnable client collection is available at [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json).
 
 ## Technology choices
 

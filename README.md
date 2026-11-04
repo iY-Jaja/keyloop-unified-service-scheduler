@@ -122,6 +122,8 @@ The Docker image build is not a substitute for this host-side test run: containe
 
 Import [Unified-Service-Scheduler.postman_collection.json](./postman/Unified-Service-Scheduler.postman_collection.json) into Postman. Start the Compose stack, then run the collection's requests in order. It reads service types and dealership resources, creates a booking at a generated future time, retries it with the same idempotency key, verifies an overlapping booking is rejected, and reads the created appointment. Set the collection variable `baseUrl` if the API is not at `http://localhost:8080`.
 
+The API contract is also documented in [openapi.yaml](./openapi.yaml), which can be viewed in an OpenAPI editor or imported into compatible API tools.
+
 The collection is a manual API smoke-test/demo, not a replacement for the automated Maven unit, component, integration, and API E2E suites. It creates a real appointment in the database; use it only with a local/demo database, not production.
 
 To start the stack, wait for readiness, and run the same demo flow automatically from the terminal:

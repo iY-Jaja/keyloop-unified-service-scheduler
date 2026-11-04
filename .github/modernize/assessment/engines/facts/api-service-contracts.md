@@ -41,7 +41,7 @@ The configured Actuator exposure includes health, info, and metrics. The applica
 - `ResourceSummary` represents dealership service bays and technicians.
 - `ApiError` represents stable error responses.
 
-These are API-level transport models; the project does not define gateway aggregation DTOs. Response DTO fields are final where applicable, while request `BookingRequest` is mutable for Jackson deserialization. JSON serialization/deserialization uses Spring Boot's Jackson integration. No OpenAPI/Swagger specification is currently configured.
+These are API-level transport models; the project does not define gateway aggregation DTOs. Response DTO fields are final where applicable, while request `BookingRequest` is mutable for Jackson deserialization. JSON serialization/deserialization uses Spring Boot's Jackson integration. The static OpenAPI contract is maintained in [`openapi.yaml`](../../../../../openapi.yaml); it documents the API but is not served by a runtime Swagger UI endpoint.
 
 ## Communication Patterns
 
